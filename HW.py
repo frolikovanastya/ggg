@@ -1,57 +1,70 @@
-import re
 import csv
-def fix_phone_number(phone_number):
-    pattern = r"(\+7|8)?\s*\(*(\d{3})\)*\s*(-+\s*)?(\d{3})\s*(-+\s*)?(\d{2})\s*(-+\s*)?(\d{2})\s*(доб\.\s*(\d+))?"
-    match = re.match(pattern, phone_number)
-    if match:
-        number = match.group(2) + match.group(4) + match.group(6) + match.group(8)
-        if match.group(10):
-            number += " доб." + match.group(10)
-        return "+7(" + number + ")"
-    else:
-        return phone_number
+import re
+from pprint import pprint
+
+
 def fix_contacts(contacts_list):
-    fixed_contacts = []
+    name_pattern = r'([А-Я])'
+    name_substitution = r' \1'
+
+    for contact in contacts_list[1:]:
+        full_name = contact[0] + contact[1] + contact[2]
+        name_parts = re.sub(name_pattern, name_substitution, full_name).split()
+
+        if len(name_parts) == 3:
+            contact[0] = name_parts[0]
+            contact[1] = name_parts[1]
+            contact[2] = name_parts[2]
+        elif len(name_parts) == 2:
+            contact[0] = name_parts[0]
+            contact[1] = name_parts[1]
+            contact[2] = ''
+        elif len(name_parts) == 1:
+            contact[0] = name_parts[0]
+            contact[1] = ''
+            contact[2] = ''
+
+    return contacts_list
+
+
+def fix_phone_numbers(contacts_list):
+    phone_pattern = re.compile(
+        r'(\+7|8)?\s*\(?(\d{3})\)?\s*\D?(\d{3})[-\s+]?(\d{2})-?(\d{2})((\s)?\(?(доб.)?\s?(\d+)\)?)?')
+    phone_substitution = r'+7(\2)\3-\4-\5\7\8\9'
+
     for contact in contacts_list:
-        lastname = contact[0]
-        firstname = contact[1]
-        surname = contact[2]
-        organization = contact[3]
-        position = contact[4]
-        phone = fix_phone_number(contact[5])
-        email = contact[6]
+        contact[5] = phone_pattern.sub(phone_substitution, contact[5])
 
-        fixed_contacts.append([lastname, firstname, surname, organization, position, phone, email])
+    return contacts_list
 
-    return fixed_contacts
 
-def merge_duplicate_contacts(contacts_list):
-    merged_contacts = []
-    unique_contacts = {}
-
-    for contact in contacts_list:
-        key = (contact[0], contact[1], contact[2])
-
-        if key not in unique_contacts:
-            unique_contacts[key] = contact
+def duplicates():
+    contact_list = {}
+    for contacts in contacts_list[1:]:
+        last_name = contacts[0]
+        if last_name not in contact_list:
+            contact_list[last_name] = contacts
         else:
-            merged_contacts.remove(unique_contacts[key])
-            merged_contacts.append(contact)
+            for id, item in enumerate(contact_list[last_name]):
+                if item == '':
+                    contact_list[last_name][id] = contacts[id]
 
-    merged_contacts = list(unique_contacts.values()) + merged_contacts
-    return merged_contacts
+    for last_name, contact in contact_list.items():
+        for contacts in contact:
+            if contact not in contacts_list_updated:
+                contacts_list_updated.append(contact)
+    return contacts_list_updated
 
 
-# Чтение адресной книги из файла
-with open("phonebook_raw.csv", "r", encoding="utf-8") as f:
-    reader = csv.reader(f, delimiter=',')
-    contacts_list = list(reader)
-
-# Фиксирование телефонов и контактов
-contacts_list = fix_contacts(contacts_list)
-contacts_list = merge_duplicate_contacts(contacts_list)
-
-# Запись адресной книги в новый файл
-with open("phonebook.csv", "w", newline='', encoding="utf-8") as f:
-    writer = csv.writer(f, delimiter=',')
-    writer.writerows(contacts_list)
+if __name__ == '__main__':
+    with open("phonebook_raw.csv", encoding="utf-8") as in_file:
+        rows = csv.reader(in_file, delimiter=",")
+        contacts_list = list(rows)
+        contacts_list_updated = []
+        fix_contacts(contacts_list)
+        fix_phone_numbers(contacts_list)
+        duplicates()
+    with open("phonebook.csv", "w", encoding="utf-8") as out_file:
+        datawriter = csv.writer(out_file, delimiter=',')
+        datawriter.writerows(contacts_list_updated)
+    pprint(contacts_list_updated)
